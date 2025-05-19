@@ -73,6 +73,9 @@ export default {
     canFilterFreeText() {
       return this.supportsConformance(this.conformances.FreeText);
     },
+    canSupportNaturalLanguage() {
+      return true;
+    },
     cql() {
       if (!this.supportsConformance(this.conformances.CqlFilters)) {
         return null;

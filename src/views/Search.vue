@@ -20,12 +20,26 @@
         </b-tabs>
       </b-col>
       <b-col class="right">
+        <!-- Natural Language Search -->
+        <b-form-group v-if="canSupportNaturalLanguage" class="natural-language-search mb-4" :label="$t('search.naturalLanguageQuery')" :label-for="'natural-language-query'" :description="$t('search.naturalLanguageDescription')">
+          <div class="d-flex">
+            <b-form-input
+              id="natural-language-query"
+              v-model="naturalLanguageQuery"
+              type="text"
+              :placeholder="$t('search.enterNaturalLanguageQuery')"
+              @keyup.enter="applyNaturalLanguageQuery"
+              class="flex-grow-1 mr-2"
+            />
+            <b-button variant="primary" @click="applyNaturalLanguageQuery">{{ $t('search.applyNaturalLanguageQuery') }}</b-button>
+          </div>
+        </b-form-group>
         <b-alert v-if="error" variant="error" show>{{ error }}</b-alert>
         <Loading v-else-if="!data && loading" fill top />
         <b-alert v-else-if="data === null" variant="info" show>{{ $t('search.modifyCriteria') }}</b-alert>
         <b-alert v-else-if="results.length === 0 && noFurtherItems" variant="info" show>{{ $t('search.noFurtherItemsFound') }}</b-alert>
         <b-alert v-else-if="results.length === 0" variant="warning" show>{{ $t('search.noItemsFound') }}</b-alert>
-        <template v-else>
+        <template v-if="data && results.length > 0">
           <div id="search-map" v-if="itemCollection">
             <Map :stac="stac" :stacLayerData="itemCollection" scrollWheelZoom popover />
           </div>
@@ -68,14 +82,18 @@ import Utils from '../utils';
 import SearchFilter from '../components/SearchFilter.vue';
 import Loading from '../components/Loading.vue';
 import STAC from '../models/stac';
-import { BIconCheckSquare, BIconSquare, BTabs, BTab } from 'bootstrap-vue';
+import { BIconCheckSquare, BIconSquare, BTabs, BTab, BFormGroup, BFormInput, BButton } from 'bootstrap-vue';
 import { processSTAC, stacRequest } from '../store/utils';
+import ApiCapabilitiesMixin from '../components/ApiCapabilitiesMixin';
 
 export default {
   name: "Search",
   components: {
     BIconCheckSquare,
     BIconSquare,
+    BButton,
+    BFormGroup,
+    BFormInput,
     BTab,
     BTabs,
     Catalogs: () => import('../components/Catalogs.vue'),
@@ -85,6 +103,9 @@ export default {
     SearchFilter,
     StacLink: () => import('../components/StacLink.vue')
   },
+  mixins: [
+    ApiCapabilitiesMixin
+  ],
   props: {
     loadParent: {
       type: String,
@@ -103,7 +124,8 @@ export default {
       itemFilters: {},
       collectionFilters: {},
       activeSearch: 0,
-      selectedCollections: {}
+      selectedCollections: {},
+      naturalLanguageQuery: ''
     };
   },
   computed: {
@@ -159,6 +181,8 @@ export default {
               return null;
             }
             let selfLink = Utils.getLinkWithRel(obj.links, 'self');
+            console.log(selfLink);
+            console.log(this.link);
             let url;
             if (selfLink?.href) {
               url = Utils.toAbsolute(selfLink.href, this.link.href);
@@ -234,6 +258,44 @@ export default {
     });
   },
   methods: {
+    async applyNaturalLanguageQuery() {
+      if (this.naturalLanguageQuery) {
+        this.error = null;
+        this.loading = true;
+        this.data = null;
+        
+        try {
+          const API_URL = "http://localhost:8000";
+          const response = await fetch(`${API_URL}/items/search`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              query: this.naturalLanguageQuery,
+              limit: 10
+            })
+          });
+
+          if (!response.ok) {
+            throw new Error(`API request failed with status ${response.status}`);
+          }
+
+          const responseData = await response.json();
+          console.log(responseData);
+          this.link = this.catalogUrl;
+          this.data = {
+            features: responseData.results.items,
+            type: 'Feature'
+          };
+        } catch (error) {
+          this.error = error.message;
+          console.error('Error in semantic search:', error);
+        } finally {
+          this.loading = false;
+        }
+      }
+    },
     openItemSearch() {
       this.$set(this.itemFilters, 'collections', Object.keys(this.selectedCollections));
       this.activeSearch = 1;
@@ -316,6 +378,12 @@ export default {
 }
 
 #stac-browser .search {
+  .natural-language-search {
+    label {
+      font-weight: 600;
+    }
+  }
+
   .selected-collections-action {
     position: fixed;
     bottom: 0;

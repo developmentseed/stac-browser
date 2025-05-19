@@ -610,6 +610,11 @@ $primary-color: map-get($theme-colors, "primary");
     > label {
       font-weight: 600;
     }
+    
+    // Add styling for fieldset > legend
+    legend {
+      font-weight: 600;
+    }
   }
 }
 </style>

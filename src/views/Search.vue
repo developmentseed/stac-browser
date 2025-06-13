@@ -155,6 +155,9 @@ export default {
     itemSearch() {
       return this.canSearchItems && this.stac && this.stac.getSearchLink();
     },
+    canSupportNaturalLanguage() {
+      return Boolean(this.$store.state.semanticSearchApiUrl);
+    },
     itemCollection() {
       if (this.isCollectionSearch) {
         return null; // wait for stac-js to convert bboxes to geojson
@@ -265,8 +268,8 @@ export default {
         this.data = null;
         
         try {
-          const API_URL = "http://localhost:8000";
-          const response = await fetch(`${API_URL}/items/search`, {
+          const SEMANTIC_SEARCH_API_URL = this.$store.state.semanticSearchApiUrl;
+          const response = await fetch(`${SEMANTIC_SEARCH_API_URL}/items/search`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json'

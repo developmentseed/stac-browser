@@ -1,9 +1,10 @@
 <template>
   <main class="search d-flex flex-column">
     <Loading v-if="!parent" stretch />
-    <b-alert v-else-if="!searchLink" variant="danger" show>{{ $t('search.notSupported') }}</b-alert>
+    <b-alert v-else-if="!searchLink && !canSupportNaturalLanguage" variant="danger" show>{{ $t('search.notSupported') }}</b-alert>
     <b-row v-else>
-      <b-col class="left">
+      <!-- Show default search tabs only when natural language search is not available -->
+      <b-col v-if="!canSupportNaturalLanguage" class="left">
         <b-tabs v-model="activeSearch">
           <b-tab v-if="collectionSearch" :title="$t('search.tabs.collections')">
             <SearchFilter
@@ -19,7 +20,7 @@
           </b-tab>
         </b-tabs>
       </b-col>
-      <b-col class="right">
+      <b-col :class="canSupportNaturalLanguage ? 'full-width' : 'right'">
         <!-- Natural Language Search -->
         <b-form-group v-if="canSupportNaturalLanguage" class="natural-language-search mb-4" :label="$t('search.naturalLanguageQuery')" :label-for="'natural-language-query'" :description="$t('search.naturalLanguageDescription')">
           <div class="d-flex">
@@ -403,6 +404,10 @@ export default {
   .right {
     min-width: 250px;
     flex-basis: 60%;
+    position: relative !important;
+  }
+  .full-width {
+    flex-basis: 100%;
     position: relative !important;
   }
   .items, .catalogs {

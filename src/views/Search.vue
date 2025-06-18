@@ -1,40 +1,29 @@
 <template>
   <main class="search d-flex flex-column">
     <Loading v-if="!parent" stretch />
-    <b-alert v-else-if="!searchLink && !canSupportNaturalLanguage" variant="danger" show>{{ $t('search.notSupported') }}</b-alert>
+    <b-alert v-else-if="!searchLink" variant="danger" show>{{ $t('search.notSupported') }}</b-alert>
     <b-row v-else>
-      <!-- Show default search tabs only when natural language search is not available -->
-      <b-col v-if="!canSupportNaturalLanguage" class="left">
+      <b-col class="left">
         <b-tabs v-model="activeSearch">
           <b-tab v-if="collectionSearch" :title="$t('search.tabs.collections')">
             <SearchFilter
               :parent="parent" title="" :value="collectionFilters" type="Collections"
               @input="setFilters"
+              @natural-language-results="handleNaturalLanguageResults"
+              @natural-language-error="handleNaturalLanguageError"
             />
           </b-tab>
           <b-tab v-if="itemSearch" :title="$t('search.tabs.items')">
             <SearchFilter
               :parent="parent" title="" :value="itemFilters" type="Global"
               @input="setFilters"
+              @natural-language-results="handleNaturalLanguageResults"
+              @natural-language-error="handleNaturalLanguageError"
             />
           </b-tab>
         </b-tabs>
       </b-col>
-      <b-col :class="canSupportNaturalLanguage ? 'full-width' : 'right'">
-        <!-- Natural Language Search -->
-        <b-form-group v-if="canSupportNaturalLanguage" class="natural-language-search mb-4" :label="$t('search.naturalLanguageQuery')" :label-for="'natural-language-query'" :description="$t('search.naturalLanguageDescription')">
-          <div class="d-flex">
-            <b-form-input
-              id="natural-language-query"
-              v-model="naturalLanguageQuery"
-              type="text"
-              :placeholder="$t('search.enterNaturalLanguageQuery')"
-              @keyup.enter="applyNaturalLanguageQuery"
-              class="flex-grow-1 mr-2"
-            />
-            <b-button variant="primary" @click="applyNaturalLanguageQuery">{{ $t('search.applyNaturalLanguageQuery') }}</b-button>
-          </div>
-        </b-form-group>
+      <b-col class="right">
         <b-alert v-if="error" variant="error" show>{{ error }}</b-alert>
         <Loading v-else-if="!data && loading" fill top />
         <b-alert v-else-if="data === null" variant="info" show>{{ $t('search.modifyCriteria') }}</b-alert>
@@ -83,7 +72,7 @@ import Utils from '../utils';
 import SearchFilter from '../components/SearchFilter.vue';
 import Loading from '../components/Loading.vue';
 import STAC from '../models/stac';
-import { BIconCheckSquare, BIconSquare, BTabs, BTab, BFormGroup, BFormInput, BButton } from 'bootstrap-vue';
+import { BIconCheckSquare, BIconSquare, BTabs, BTab } from 'bootstrap-vue';
 import { processSTAC, stacRequest } from '../store/utils';
 import ApiCapabilitiesMixin from '../components/ApiCapabilitiesMixin';
 
@@ -92,9 +81,6 @@ export default {
   components: {
     BIconCheckSquare,
     BIconSquare,
-    BButton,
-    BFormGroup,
-    BFormInput,
     BTab,
     BTabs,
     Catalogs: () => import('../components/Catalogs.vue'),
@@ -126,7 +112,6 @@ export default {
       collectionFilters: {},
       activeSearch: 0,
       selectedCollections: {},
-      naturalLanguageQuery: ''
     };
   },
   computed: {
@@ -155,9 +140,6 @@ export default {
     },
     itemSearch() {
       return this.canSearchItems && this.stac && this.stac.getSearchLink();
-    },
-    canSupportNaturalLanguage() {
-      return Boolean(this.$store.state.semanticSearchApiUrl);
     },
     itemCollection() {
       if (this.isCollectionSearch) {
@@ -262,43 +244,16 @@ export default {
     });
   },
   methods: {
-    async applyNaturalLanguageQuery() {
-      if (this.naturalLanguageQuery) {
-        this.error = null;
-        this.loading = true;
-        this.data = null;
-        
-        try {
-          const SEMANTIC_SEARCH_API_URL = this.$store.state.semanticSearchApiUrl;
-          const response = await fetch(`${SEMANTIC_SEARCH_API_URL}/items/search`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              query: this.naturalLanguageQuery,
-              limit: 10
-            })
-          });
-
-          if (!response.ok) {
-            throw new Error(`API request failed with status ${response.status}`);
-          }
-
-          const responseData = await response.json();
-          console.log(responseData);
-          this.link = this.catalogUrl;
-          this.data = {
-            features: responseData.results.items,
-            type: 'Feature'
-          };
-        } catch (error) {
-          this.error = error.message;
-          console.error('Error in semantic search:', error);
-        } finally {
-          this.loading = false;
-        }
-      }
+    handleNaturalLanguageResults(data) {
+      this.error = null;
+      this.loading = false;
+      this.link = this.catalogUrl;
+      this.data = data;
+    },
+    handleNaturalLanguageError(errorMessage) {
+      this.error = errorMessage;
+      this.loading = false;
+      this.data = null;
     },
     openItemSearch() {
       this.$set(this.itemFilters, 'collections', Object.keys(this.selectedCollections));
@@ -382,12 +337,6 @@ export default {
 }
 
 #stac-browser .search {
-  .natural-language-search {
-    label {
-      font-weight: 600;
-    }
-  }
-
   .selected-collections-action {
     position: fixed;
     bottom: 0;
@@ -404,10 +353,6 @@ export default {
   .right {
     min-width: 250px;
     flex-basis: 60%;
-    position: relative !important;
-  }
-  .full-width {
-    flex-basis: 100%;
     position: relative !important;
   }
   .items, .catalogs {

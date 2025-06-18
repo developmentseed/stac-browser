@@ -6,6 +6,21 @@
 
         <b-card-title v-if="title" :title="title" />
 
+        <!-- Natural Language Search -->
+        <b-form-group v-if="canSupportNaturalLanguage" class="natural-language-search" :label="$t('search.naturalLanguageQuery')" :label-for="ids.naturalLanguage" :description="$t('search.naturalLanguageDescription')">
+          <div class="d-flex">
+            <b-form-input
+              :id="ids.naturalLanguage"
+              v-model="naturalLanguageQuery"
+              type="text"
+              :placeholder="$t('search.enterNaturalLanguageQuery')"
+              @keyup.enter="applyNaturalLanguageQuery"
+              class="flex-grow-1 mr-2"
+            />
+            <b-button variant="primary" @click="applyNaturalLanguageQuery">{{ $t('search.applyNaturalLanguageQuery') }}</b-button>
+          </div>
+        </b-form-group>
+
         <b-form-group v-if="canFilterFreeText" class="filter-freetext" :label="$t('search.freeText')" :label-for="ids.q" :description="$t('search.freeTextDescription')">
           <multiselect
             :id="ids.q" :value="query.q" @input="setSearchTerms"
@@ -116,7 +131,7 @@
 </template>
 
 <script>
-import { BBadge, BDropdown, BDropdownItem, BForm, BFormGroup, BFormInput, BFormCheckbox, BFormRadioGroup } from 'bootstrap-vue';
+import { BBadge, BDropdown, BDropdownItem, BForm, BFormGroup, BFormInput, BFormCheckbox, BFormRadioGroup, BButton } from 'bootstrap-vue';
 import Multiselect from 'vue-multiselect';
 import { mapGetters, mapState } from "vuex";
 import refParser from '@apidevtools/json-schema-ref-parser';
@@ -144,7 +159,8 @@ function getQueryDefaults() {
     ids: [],
     collections: [],
     sortby: null,
-    filters: null
+    filters: null,
+    naturalLanguageQuery: ''
   };
 }
 
@@ -156,7 +172,8 @@ function getDefaults() {
     query: getQueryDefaults(),
     filtersAndOr: 'and',
     filters: [],
-    selectedCollections: []
+    selectedCollections: [],
+    naturalLanguageQuery: ''
   };
 }
 
@@ -173,6 +190,7 @@ export default {
     BFormInput,
     BFormCheckbox,
     BFormRadioGroup,
+    BButton,
     QueryableInput: () => import('./QueryableInput.vue'),
     Loading,
     Map: () => import('./Map.vue'),
@@ -215,6 +233,9 @@ export default {
   computed: {
     ...mapState(['itemsPerPage', 'maxItemsPerPage', 'uiLanguage']),
     ...mapGetters(['canSearchCollections', 'supportsConformance']),
+    canSupportNaturalLanguage() {
+      return Boolean(this.$store.state.semanticSearchApiUrl);
+    },
     collectionSelectOptions() {
       let taggable = !this.hasAllCollections;
       let isResult = this.collections.length > 0 && !this.hasAllCollections;
@@ -245,7 +266,7 @@ export default {
     },
     ids() {
       let obj = {};
-      ['q', 'datetime', 'bbox', 'collections', 'ids', 'sort', 'limit']
+      ['q', 'datetime', 'bbox', 'collections', 'ids', 'sort', 'limit', 'naturalLanguage']
         .forEach(field => obj[field] = field + formId);
       return obj;
     },
@@ -349,6 +370,39 @@ export default {
     Promise.all(promises).finally(() => this.loaded = true);
   },
   methods: {
+    async applyNaturalLanguageQuery() {
+      if (this.naturalLanguageQuery) {
+        try {
+          const SEMANTIC_SEARCH_API_URL = this.$store.state.semanticSearchApiUrl;
+          const response = await fetch(`${SEMANTIC_SEARCH_API_URL}/items/search`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              query: this.naturalLanguageQuery,
+              limit: 10
+            })
+          });
+
+          if (!response.ok) {
+            throw new Error(`API request failed with status ${response.status}`);
+          }
+
+          const responseData = await response.json();
+          console.log(responseData);
+          
+          // Emit the natural language search results
+          this.$emit('natural-language-results', {
+            features: responseData.results.items,
+            type: 'Feature'
+          });
+        } catch (error) {
+          console.error('Error in semantic search:', error);
+          this.$emit('natural-language-error', error.message);
+        }
+      }
+    },
     resetSearchCollection() {
       clearTimeout(this.collectionsLoadingTimer);
       this.collectionsLoadingTimer = null;
@@ -502,10 +556,12 @@ export default {
       }
       let filters = this.buildFilter();
       this.$set(this.query, 'filters', filters);
+      this.$set(this.query, 'naturalLanguageQuery', this.naturalLanguageQuery);
       this.$emit('input', this.query, false);
     },
     async onReset() {
       Object.assign(this, getDefaults());
+      this.naturalLanguageQuery = '';
       this.$emit('input', {}, true);
     },
     setLimit(limit) {
@@ -613,6 +669,12 @@ $primary-color: map-get($theme-colors, "primary");
     
     // Add styling for fieldset > legend
     legend {
+      font-weight: 600;
+    }
+  }
+
+  .natural-language-search {
+    label {
       font-weight: 600;
     }
   }

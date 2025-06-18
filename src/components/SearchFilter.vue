@@ -436,6 +436,27 @@ export default {
             }
           }
           
+          // Extract collections from search_params if available
+          if (responseData.results && responseData.results.search_params && responseData.results.search_params.collections) {
+            const collectionIds = responseData.results.search_params.collections;
+            if (Array.isArray(collectionIds) && collectionIds.length > 0) {
+              // Remove duplicates and set collections in the query
+              const uniqueCollectionIds = [...new Set(collectionIds)];
+              this.$set(this.query, 'collections', uniqueCollectionIds);
+              
+              // Update selectedCollections to match the query collections
+              this.selectedCollections = uniqueCollectionIds.map(id => {
+                // Try to find existing collection in the collections array
+                let existingCollection = this.collections.find(c => c.value === id);
+                if (existingCollection) {
+                  return existingCollection;
+                }
+                // If not found, create a new collection option
+                return this.collectionToMultiSelect({id});
+              });
+            }
+          }
+          
           // Emit the natural language search results
           this.$emit('natural-language-results', {
             features: responseData.results.items,

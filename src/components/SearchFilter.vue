@@ -8,6 +8,9 @@
 
         <!-- Natural Language Search -->
         <b-form-group v-if="canSupportNaturalLanguage" class="natural-language-search" :label="$t('search.naturalLanguageQuery')" :label-for="ids.naturalLanguage" :description="$t('search.naturalLanguageDescription')">
+          <div class="alert alert-info mb-3">
+            {{ $t('search.naturalLanguageInfo') }}
+          </div>
           <div class="d-flex">
             <b-form-input
               :id="ids.naturalLanguage"
@@ -17,7 +20,9 @@
               @keyup.enter="applyNaturalLanguageQuery"
               class="flex-grow-1 mr-2"
             />
-            <b-button variant="primary" @click="applyNaturalLanguageQuery">{{ $t('search.applyNaturalLanguageQuery') }}</b-button>
+            <b-button variant="primary" @click="applyNaturalLanguageQuery">
+              {{ $t('search.applyNaturalLanguageQuery') }}
+            </b-button>
           </div>
         </b-form-group>
 
@@ -669,12 +674,6 @@ $primary-color: map-get($theme-colors, "primary");
     
     // Add styling for fieldset > legend
     legend {
-      font-weight: 600;
-    }
-  }
-
-  .natural-language-search {
-    label {
       font-weight: 600;
     }
   }

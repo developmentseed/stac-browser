@@ -7,7 +7,7 @@
         <b-card-title v-if="title" :title="title" />
 
         <!-- Natural Language Search -->
-        <b-form-group v-if="canSupportNaturalLanguage" class="natural-language-search" :label="$t('search.naturalLanguageQuery')" :label-for="ids.naturalLanguage" :description="$t('search.naturalLanguageDescription')">
+        <b-form-group v-if="canSupportNaturalLanguage" class="natural-language-search" :label="$t('search.naturalLanguageQuery')" :label-for="ids.naturalLanguage" :description="naturalLanguageDescription">
           <div class="alert alert-info mb-3">
             {{ $t('search.naturalLanguageInfo') }}
           </div>
@@ -18,10 +18,16 @@
               type="text"
               :placeholder="$t('search.enterNaturalLanguageQuery')"
               @keyup.enter="applyNaturalLanguageQuery"
+              @keydown.enter.prevent
               class="flex-grow-1 mr-2"
             />
-            <b-button variant="primary" @click="applyNaturalLanguageQuery">
-              {{ $t('search.applyNaturalLanguageQuery') }}
+            <b-button variant="primary" @click="applyNaturalLanguageQuery" :disabled="naturalLanguageLoading">
+              <span v-if="naturalLanguageLoading">
+                {{ $t('search.processing') }}
+              </span>
+              <span v-else>
+                {{ $t('search.applyNaturalLanguageQuery') }}
+              </span>
             </b-button>
           </div>
         </b-form-group>
@@ -178,7 +184,9 @@ function getDefaults() {
     filtersAndOr: 'and',
     filters: [],
     selectedCollections: [],
-    naturalLanguageQuery: ''
+    naturalLanguageQuery: '',
+    naturalLanguageExplanation: '',
+    naturalLanguageLoading: false
   };
 }
 
@@ -232,7 +240,8 @@ export default {
       hasAllCollections: false,
       collections: [],
       collectionsLoadingTimer: null,
-      additionalCollectionCount: 0
+      additionalCollectionCount: 0,
+      naturalLanguageLoading: false
     }, getDefaults());
   },
   computed: {
@@ -315,6 +324,9 @@ export default {
       set(val) {
         this.query.datetime = Array.isArray(val) ? val.map(d => Utils.dateToUTC(d)) : null;
       }
+    },
+    naturalLanguageDescription() {
+      return this.naturalLanguageExplanation;
     }
   },
   watch: {
@@ -375,8 +387,15 @@ export default {
     Promise.all(promises).finally(() => this.loaded = true);
   },
   methods: {
-    async applyNaturalLanguageQuery() {
+    async applyNaturalLanguageQuery(event) {
+      // Prevent form submission
+      if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      
       if (this.naturalLanguageQuery) {
+        this.naturalLanguageLoading = true;
         try {
           const SEMANTIC_SEARCH_API_URL = this.$store.state.semanticSearchApiUrl;
           const response = await fetch(`${SEMANTIC_SEARCH_API_URL}/items/search`, {
@@ -395,7 +414,13 @@ export default {
           }
 
           const responseData = await response.json();
-          console.log(responseData);
+          
+          // Store the explanation if available in the response
+          if (responseData.explanation) {
+            this.naturalLanguageExplanation = responseData.explanation;
+          } else if (responseData.results && responseData.results.explanation) {
+            this.naturalLanguageExplanation = responseData.results.explanation;
+          }
           
           // Emit the natural language search results
           this.$emit('natural-language-results', {
@@ -405,6 +430,8 @@ export default {
         } catch (error) {
           console.error('Error in semantic search:', error);
           this.$emit('natural-language-error', error.message);
+        } finally {
+          this.naturalLanguageLoading = false;
         }
       }
     },
@@ -567,6 +594,8 @@ export default {
     async onReset() {
       Object.assign(this, getDefaults());
       this.naturalLanguageQuery = '';
+      this.naturalLanguageExplanation = '';
+      this.naturalLanguageLoading = false;
       this.$emit('input', {}, true);
     },
     setLimit(limit) {

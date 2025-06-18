@@ -457,6 +457,16 @@ export default {
             }
           }
           
+          // Extract max_items from search_params if available
+          if (responseData.results && responseData.results.search_params && responseData.results.search_params.max_items) {
+            const maxItems = parseInt(responseData.results.search_params.max_items, 10);
+            if (!isNaN(maxItems) && maxItems > 0) {
+              // Ensure the value doesn't exceed the maximum allowed
+              const limitedMaxItems = Math.min(maxItems, this.maxItems);
+              this.$set(this.query, 'limit', limitedMaxItems);
+            }
+          }
+          
           // Emit the natural language search results
           this.$emit('natural-language-results', {
             features: responseData.results.items,

@@ -422,6 +422,20 @@ export default {
             this.naturalLanguageExplanation = responseData.results.explanation;
           }
           
+          // Extract datetime from search_params if available
+          if (responseData.results && responseData.results.search_params && responseData.results.search_params.datetime) {
+            const datetimeString = responseData.results.search_params.datetime;
+            // Parse datetime string in format '2021-01-01/2022-12-31'
+            const dates = datetimeString.split('/');
+            if (dates.length === 2) {
+              const startDate = dates[0] === '..' ? null : new Date(dates[0]);
+              const endDate = dates[1] === '..' ? null : new Date(dates[1]);
+              
+              // Set the datetime in the query
+              this.query.datetime = [startDate, endDate];
+            }
+          }
+          
           // Emit the natural language search results
           this.$emit('natural-language-results', {
             features: responseData.results.items,

@@ -439,7 +439,8 @@ export default {
           // Emit the natural language search results
           this.$emit('natural-language-results', {
             features: responseData.results.items,
-            type: 'Feature'
+            type: 'Feature',
+            intersects: responseData.results.search_params?.intersects || null
           });
         } catch (error) {
           console.error('Error in semantic search:', error);

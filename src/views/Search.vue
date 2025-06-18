@@ -112,6 +112,7 @@ export default {
       collectionFilters: {},
       activeSearch: 0,
       selectedCollections: {},
+      naturalLanguageIntersects: null,
     };
   },
   computed: {
@@ -148,7 +149,8 @@ export default {
       return {
         type: 'FeatureCollection',
         features: this.results,
-        links: []
+        links: [],
+        intersects: this.naturalLanguageIntersects
       };
     },
     results() {
@@ -249,6 +251,7 @@ export default {
       this.loading = false;
       this.link = this.catalogUrl;
       this.data = data;
+      this.naturalLanguageIntersects = data.intersects;
     },
     handleNaturalLanguageError(errorMessage) {
       this.error = errorMessage;
@@ -299,18 +302,18 @@ export default {
         this.loading = false;
       }
     },
-    async setFilters(filters, reset = false) {
+    setFilters(filters, reset = false) {
+      if (reset) {
+        this.naturalLanguageIntersects = null; // Clear intersects polygon on reset
+        this.data = null;
+      } else {
+        this.loadResults(this.searchLink);
+      }
       if (this.isCollectionSearch) {
         this.collectionFilters = filters;
       }
       else {
         this.itemFilters = filters;
-      }
-      if (reset) {
-        this.data = null;
-      }
-      else {
-        await this.loadResults(this.searchLink);
       }
     },
     showPage(url) {

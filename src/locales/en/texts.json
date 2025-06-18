@@ -228,6 +228,8 @@
     "naturalLanguageQuery": "AI Search",
     "naturalLanguageInfo": "Enter a natural language query to search. This will replace any existing filter selections and return AI-powered search results.",
     "applyNaturalLanguageQuery": "Search",
+    "naturalLanguageSearchArea": "Natural Language Search Area",
+    "naturalLanguageSearchAreaDescription": "This area represents the spatial extent used in your natural language search query.",
     "processing": "Processing...",
     "equalTo": "equal to",
     "filterBySpatialExtent": "Filter by spatial extent",

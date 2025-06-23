@@ -169,6 +169,7 @@ function getQueryDefaults() {
     q: [],
     datetime: null,
     bbox: null,
+    intersects: null,
     limit: null,
     ids: [],
     collections: [],
@@ -190,7 +191,8 @@ function getDefaults() {
     naturalLanguageQuery: '',
     naturalLanguageExplanation: '',
     naturalLanguageLoading: false,
-    naturalLanguageError: null
+    naturalLanguageError: null,
+    naturalSearchArea: null
   };
 }
 
@@ -332,10 +334,20 @@ export default {
       return this.naturalLanguageExplanation;
     },
     spatialExtentOptions() {
-      return [
+      const options = [
         { value: 'none', text: this.$t('search.spatialExtentOptions.none') },
         { value: 'boundingBox', text: this.$t('search.spatialExtentOptions.boundingBox') },
       ];
+      
+      // Add natural search area option if available
+      if (this.naturalSearchArea) {
+        options.push({ 
+          value: 'naturalSearchArea', 
+          text: this.$t('search.spatialExtentOptions.naturalSearchArea') 
+        });
+      }
+      
+      return options;
     }
   },
   watch: {
@@ -474,6 +486,16 @@ export default {
               // Ensure the value doesn't exceed the maximum allowed
               const limitedMaxItems = Math.min(maxItems, this.maxItems);
               this.$set(this.query, 'limit', limitedMaxItems);
+            }
+          }
+          
+          // Extract natural search area from search_params if available
+          if (responseData.results && responseData.results.search_params && responseData.results.search_params.intersects) {
+            const intersects = responseData.results.search_params.intersects;
+            if (intersects) {
+              this.naturalSearchArea = intersects;
+              // Set spatial extent type to natural search area if available
+              this.spatialExtentType = 'naturalSearchArea';
             }
           }
                     
@@ -640,8 +662,30 @@ export default {
       }
       let filters = this.buildFilter();
       this.$set(this.query, 'filters', filters);
-      this.$set(this.query, 'naturalLanguageQuery', this.naturalLanguageQuery);
-      this.$emit('input', this.query, false);
+      
+      // Set spatial parameters based on current selection
+      if (this.spatialExtentType === 'naturalSearchArea' && this.naturalSearchArea) {
+        this.$set(this.query, 'intersects', this.naturalSearchArea);
+        this.$set(this.query, 'bbox', null);
+      } else if (this.spatialExtentType === 'boundingBox') {
+        this.$set(this.query, 'bbox', this.query.bbox);
+        this.$set(this.query, 'intersects', null);
+      } else {
+        // None selected
+        this.$set(this.query, 'bbox', null);
+        this.$set(this.query, 'intersects', null);
+      }
+      
+      // Remove naturalLanguageQuery from the submitted query
+      const submitQuery = { ...this.query };
+      delete submitQuery.naturalLanguageQuery;
+      
+      // Only include intersects if it's not empty
+      if (!submitQuery.intersects) {
+        delete submitQuery.intersects;
+      }
+      
+      this.$emit('input', submitQuery, false);
     },
     async onReset() {
       Object.assign(this, getDefaults());
@@ -649,6 +693,8 @@ export default {
       this.naturalLanguageExplanation = '';
       this.naturalLanguageLoading = false;
       this.naturalLanguageError = null;
+      this.naturalSearchArea = null;
+      this.query.intersects = null;
       this.$emit('input', {}, true);
     },
     setLimit(limit) {
@@ -672,6 +718,8 @@ export default {
     },
     setBBox(bounds) {
       let bbox = null;
+      let intersects = null;
+      
       if (this.spatialExtentType === 'boundingBox') {
         if (Utils.isObject(bounds) && typeof bounds.toBBoxString === 'function') {
           // This is a Leaflet LatLngBounds Object
@@ -688,7 +736,13 @@ export default {
           bbox = bounds;
         }
       }
+      else if (this.spatialExtentType === 'naturalSearchArea' && this.naturalSearchArea) {
+        // Use the natural search area as intersects parameter
+        intersects = this.naturalSearchArea;
+      }
+      
       this.$set(this.query, 'bbox', bbox);
+      this.$set(this.query, 'intersects', intersects);
     },
     addCollection(collection) {
       if (!this.collectionSelectOptions.taggable) {

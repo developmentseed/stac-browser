@@ -268,7 +268,8 @@
     "spatialExtent": "Spatial Extent",
     "spatialExtentOptions": {
       "none": "None",
-      "boundingBox": "Bounding Box"
+      "boundingBox": "Bounding Box",
+      "naturalSearchArea": "Natural Search Area"
     },
     "tabs": {
       "collections": "Search for Collections",

@@ -56,8 +56,8 @@
         </b-form-group>
 
         <b-form-group v-if="canFilterExtents" class="filter-bbox" :label="$t('search.spatialExtent')" :label-for="ids.bbox">
-          <b-form-checkbox :id="ids.bbox" v-model="provideBBox" value="1" @change="setBBox()">{{ $t('search.filterBySpatialExtent') }}</b-form-checkbox>
-          <Map class="mb-4" v-if="provideBBox" :stac="stac" selectBounds @bounds="setBBox" scrollWheelZoom />
+          <b-form-radio-group :id="ids.bbox" v-model="spatialExtentType" :options="spatialExtentOptions" name="spatialExtent" @change="setBBox()" />
+          <Map class="mb-4" v-if="spatialExtentType === 'boundingBox'" :stac="stac" selectBounds @bounds="setBBox" scrollWheelZoom />
         </b-form-group>
 
         <b-form-group v-if="conformances.CollectionIdFilter" class="filter-collection" :label="$tc('stacCollection', collections.length)" :label-for="ids.collections">
@@ -145,7 +145,7 @@
 </template>
 
 <script>
-import { BBadge, BDropdown, BDropdownItem, BForm, BFormGroup, BFormInput, BFormCheckbox, BFormRadioGroup, BButton } from 'bootstrap-vue';
+import { BBadge, BDropdown, BDropdownItem, BForm, BFormGroup, BFormInput, BFormRadioGroup, BButton } from 'bootstrap-vue';
 import Multiselect from 'vue-multiselect';
 import { mapGetters, mapState } from "vuex";
 import refParser from '@apidevtools/json-schema-ref-parser';
@@ -182,7 +182,7 @@ function getDefaults() {
   return {
     sortOrder: 1,
     sortTerm: null,
-    provideBBox: false,
+    spatialExtentType: 'none',
     query: getQueryDefaults(),
     filtersAndOr: 'and',
     filters: [],
@@ -205,7 +205,6 @@ export default {
     BForm,
     BFormGroup,
     BFormInput,
-    BFormCheckbox,
     BFormRadioGroup,
     BButton,
     QueryableInput: () => import('./QueryableInput.vue'),
@@ -331,6 +330,12 @@ export default {
     },
     naturalLanguageDescription() {
       return this.naturalLanguageExplanation;
+    },
+    spatialExtentOptions() {
+      return [
+        { value: 'none', text: this.$t('search.spatialExtentOptions.none') },
+        { value: 'boundingBox', text: this.$t('search.spatialExtentOptions.boundingBox') },
+      ];
     }
   },
   watch: {
@@ -667,7 +672,7 @@ export default {
     },
     setBBox(bounds) {
       let bbox = null;
-      if (this.provideBBox) {
+      if (this.spatialExtentType === 'boundingBox') {
         if (Utils.isObject(bounds) && typeof bounds.toBBoxString === 'function') {
           // This is a Leaflet LatLngBounds Object
           const Y = 85.06;

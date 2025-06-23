@@ -266,6 +266,10 @@
       "title": "Title"
     },
     "spatialExtent": "Spatial Extent",
+    "spatialExtentOptions": {
+      "none": "None",
+      "boundingBox": "Bounding Box"
+    },
     "tabs": {
       "collections": "Search for Collections",
       "items": "Search for Items"

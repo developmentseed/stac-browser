@@ -283,17 +283,18 @@ export default {
         this.loading = false;
       }
     },
-    setFilters(filters, reset = false) {
-      if (reset) {
-        this.data = null;
-      } else {
-        this.loadResults(this.searchLink);
-      }
+    async setFilters(filters, reset = false) {
       if (this.isCollectionSearch) {
         this.collectionFilters = filters;
       }
       else {
         this.itemFilters = filters;
+      }
+      if (reset) {
+        this.data = null;
+      }
+      else {
+        await this.loadResults(this.searchLink);
       }
     },
     showPage(url) {

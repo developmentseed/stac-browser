@@ -9,16 +9,12 @@
             <SearchFilter
               :parent="parent" title="" :value="collectionFilters" type="Collections"
               @input="setFilters"
-              @natural-language-results="handleNaturalLanguageResults"
-              @natural-language-error="handleNaturalLanguageError"
             />
           </b-tab>
           <b-tab v-if="itemSearch" :title="$t('search.tabs.items')">
             <SearchFilter
               :parent="parent" title="" :value="itemFilters" type="Global"
               @input="setFilters"
-              @natural-language-results="handleNaturalLanguageResults"
-              @natural-language-error="handleNaturalLanguageError"
             />
           </b-tab>
         </b-tabs>
@@ -112,7 +108,6 @@ export default {
       collectionFilters: {},
       activeSearch: 0,
       selectedCollections: {},
-      naturalLanguageIntersects: null,
     };
   },
   computed: {
@@ -149,8 +144,7 @@ export default {
       return {
         type: 'FeatureCollection',
         features: this.results,
-        links: [],
-        intersects: this.naturalLanguageIntersects
+        links: []
       };
     },
     results() {
@@ -169,8 +163,7 @@ export default {
               return null;
             }
             let selfLink = Utils.getLinkWithRel(obj.links, 'self');
-            console.log(selfLink);
-            console.log(this.link);
+
             let url;
             if (selfLink?.href) {
               url = Utils.toAbsolute(selfLink.href, this.link.href);
@@ -199,7 +192,7 @@ export default {
       return this.$t('search.metaDescription', {title});
     },
     noFurtherItems() {
-      // Ideally this would be dertmined by the prev link, but it's not required
+      // Ideally this would be determined by the prev link, but it's not required
       // so we check whether our current link has a next rel type which indicates
       // that it's a subsequent page. On the first pages the link rel type would be
       // "search" (or "prev" or "first"). This only works for forward navigation.
@@ -246,18 +239,6 @@ export default {
     });
   },
   methods: {
-    handleNaturalLanguageResults(data) {
-      this.error = null;
-      this.loading = false;
-      this.link = this.catalogUrl;
-      this.data = data;
-      this.naturalLanguageIntersects = data.intersects;
-    },
-    handleNaturalLanguageError(errorMessage) {
-      this.error = errorMessage;
-      this.loading = false;
-      this.data = null;
-    },
     openItemSearch() {
       this.$set(this.itemFilters, 'collections', Object.keys(this.selectedCollections));
       this.activeSearch = 1;
@@ -304,7 +285,6 @@ export default {
     },
     setFilters(filters, reset = false) {
       if (reset) {
-        this.naturalLanguageIntersects = null; // Clear intersects polygon on reset
         this.data = null;
       } else {
         this.loadResults(this.searchLink);

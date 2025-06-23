@@ -11,6 +11,9 @@
           <div class="alert alert-info mb-3">
             {{ $t('search.naturalLanguageInfo') }}
           </div>
+          <b-alert v-if="naturalLanguageError" variant="danger" show dismissible @dismissed="naturalLanguageError = null">
+            {{ naturalLanguageError }}
+          </b-alert>
           <div class="d-flex">
             <b-form-input
               :id="ids.naturalLanguage"
@@ -186,7 +189,8 @@ function getDefaults() {
     selectedCollections: [],
     naturalLanguageQuery: '',
     naturalLanguageExplanation: '',
-    naturalLanguageLoading: false
+    naturalLanguageLoading: false,
+    naturalLanguageError: null
   };
 }
 
@@ -404,6 +408,7 @@ export default {
               'Content-Type': 'application/json'
             },
             body: JSON.stringify({
+              return_search_params_only: true,
               query: this.naturalLanguageQuery,
               limit: 10
             })
@@ -466,16 +471,12 @@ export default {
               this.$set(this.query, 'limit', limitedMaxItems);
             }
           }
+                    
+          this.naturalLanguageError = null;
           
-          // Emit the natural language search results
-          this.$emit('natural-language-results', {
-            features: responseData.results.items,
-            type: 'Feature',
-            intersects: responseData.results.search_params?.intersects || null
-          });
         } catch (error) {
           console.error('Error in semantic search:', error);
-          this.$emit('natural-language-error', error.message);
+          this.naturalLanguageError = error.message;
         } finally {
           this.naturalLanguageLoading = false;
         }
@@ -642,6 +643,7 @@ export default {
       this.naturalLanguageQuery = '';
       this.naturalLanguageExplanation = '';
       this.naturalLanguageLoading = false;
+      this.naturalLanguageError = null;
       this.$emit('input', {}, true);
     },
     setLimit(limit) {

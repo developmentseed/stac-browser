@@ -228,6 +228,8 @@
     "naturalLanguageQuery": "Natural Language Search",
     "naturalLanguageInfo": "Enter a description of what you are searching for using natural language, such as 'satellite images of California from 2023'.",
     "applyNaturalLanguageQuery": "Populate",
+    "searchDirectly": "Search",
+    "populateForm": "Populate Form",
     "naturalLanguageSearchArea": "Natural Language Search Area",
     "naturalLanguageSearchAreaDescription": "This area represents the spatial extent used in your natural language search query.",
     "processing": "Processing...",

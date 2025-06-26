@@ -35,6 +35,8 @@
           </div>
         </b-form-group>
 
+        <hr v-if="canSupportNaturalLanguage">
+
         <b-form-group v-if="canFilterFreeText" class="filter-freetext" :label="$t('search.freeText')" :label-for="ids.q" :description="$t('search.freeTextDescription')">
           <multiselect
             :id="ids.q" :value="query.q" @input="setSearchTerms"

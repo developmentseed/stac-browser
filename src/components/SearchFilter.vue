@@ -70,6 +70,13 @@
         <b-form-group v-if="canFilterExtents" class="filter-bbox" :label="$t('search.spatialExtent')" :label-for="ids.bbox">
           <b-form-radio-group :id="ids.bbox" v-model="spatialExtentType" :options="spatialExtentOptions" name="spatialExtent" @change="setBBox()" />
           <Map class="mb-4" v-if="spatialExtentType === 'boundingBox'" :stac="stac" selectBounds @bounds="setBBox" scrollWheelZoom />
+          <div v-if="spatialExtentType === 'naturalSearchArea' && naturalSearchArea">
+            <div class="alert alert-info mb-3">
+              <strong>{{ $t('search.spatialExtentOptions.naturalSearchArea') }}:</strong>
+              {{ $t('search.naturalSearchAreaDescription') }}
+            </div>
+            <Map class="mb-4" :key="'naturalSearchArea-' + JSON.stringify(naturalSearchArea)" :stac="stac" :stacLayerData="{intersects: naturalSearchArea}" scrollWheelZoom />
+          </div>
         </b-form-group>
 
         <b-form-group v-if="conformances.CollectionIdFilter" class="filter-collection" :label="$tc('stacCollection', collections.length)" :label-for="ids.collections">

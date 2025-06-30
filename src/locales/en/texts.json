@@ -273,6 +273,7 @@
       "boundingBox": "Bounding Box",
       "naturalSearchArea": "Natural Search Area"
     },
+    "naturalSearchAreaDescription": "This spatial area was automatically derived from your natural language query and will be used to filter search results.",
     "tabs": {
       "collections": "Search for Collections",
       "items": "Search for Items"

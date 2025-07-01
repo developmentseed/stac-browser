@@ -6,6 +6,47 @@
 
         <b-card-title v-if="title" :title="title" />
 
+        <!-- Natural Language Search -->
+        <b-form-group v-if="canSupportNaturalLanguage" class="natural-language-search" :label="$t('search.naturalLanguageQuery')" :label-for="ids.naturalLanguage" :description="naturalLanguageDescription">
+          <div class="alert alert-info mb-3">
+            {{ $t('search.naturalLanguageInfo') }}
+          </div>
+          <b-alert v-if="naturalLanguageError" variant="danger" show dismissible @dismissed="naturalLanguageError = null">
+            {{ naturalLanguageError }}
+          </b-alert>
+          <div>
+            <b-form-input
+              :id="ids.naturalLanguage"
+              v-model="naturalLanguageQuery"
+              type="text"
+              :placeholder="$t('search.enterNaturalLanguageQuery')"
+              @keyup.enter="directNaturalLanguageSearch"
+              @keydown.enter.prevent
+              class="mb-3"
+            />
+            <div class="d-flex justify-content-end">
+              <b-button variant="outline-secondary" @click="applyNaturalLanguageQuery" :disabled="naturalLanguageLoading && naturalLanguageAction !== 'populate'" class="mr-2">
+                <span v-if="naturalLanguageLoading && naturalLanguageAction === 'populate'">
+                  {{ $t('search.processing') }}
+                </span>
+                <span v-else>
+                  {{ $t('search.populateForm') }}
+                </span>
+              </b-button>
+              <b-button variant="primary" @click="directNaturalLanguageSearch" :disabled="naturalLanguageLoading && naturalLanguageAction !== 'search'">
+                <span v-if="naturalLanguageLoading && naturalLanguageAction === 'search'">
+                  {{ $t('search.processing') }}
+                </span>
+                <span v-else>
+                  {{ $t('search.searchDirectly') }}
+                </span>
+              </b-button>
+            </div>
+          </div>
+        </b-form-group>
+
+        <hr v-if="canSupportNaturalLanguage">
+
         <b-form-group v-if="canFilterFreeText" class="filter-freetext" :label="$t('search.freeText')" :label-for="ids.q" :description="$t('search.freeTextDescription')">
           <multiselect
             :id="ids.q" :value="query.q" @input="setSearchTerms"
@@ -27,8 +68,15 @@
         </b-form-group>
 
         <b-form-group v-if="canFilterExtents" class="filter-bbox" :label="$t('search.spatialExtent')" :label-for="ids.bbox">
-          <b-form-checkbox :id="ids.bbox" v-model="provideBBox" value="1" @change="setBBox()">{{ $t('search.filterBySpatialExtent') }}</b-form-checkbox>
-          <Map class="mb-4" v-if="provideBBox" :stac="stac" selectBounds @bounds="setBBox" scrollWheelZoom />
+          <b-form-radio-group :id="ids.bbox" v-model="spatialExtentType" :options="spatialExtentOptions" name="spatialExtent" @change="setBBox()" />
+          <Map class="mb-4" v-if="spatialExtentType === 'boundingBox'" :stac="stac" selectBounds @bounds="setBBox" scrollWheelZoom />
+          <div v-if="spatialExtentType === 'naturalSearchArea' && naturalSearchArea">
+            <div class="alert alert-info mb-3">
+              <strong>{{ $t('search.spatialExtentOptions.naturalSearchArea') }}:</strong>
+              {{ $t('search.naturalSearchAreaDescription') }}
+            </div>
+            <Map class="mb-4" :key="'naturalSearchArea-' + JSON.stringify(naturalSearchArea)" :stac="stac" :stacLayerData="{intersects: naturalSearchArea}" scrollWheelZoom />
+          </div>
         </b-form-group>
 
         <b-form-group v-if="conformances.CollectionIdFilter" class="filter-collection" :label="$tc('stacCollection', collections.length)" :label-for="ids.collections">
@@ -116,7 +164,7 @@
 </template>
 
 <script>
-import { BBadge, BDropdown, BDropdownItem, BForm, BFormGroup, BFormInput, BFormCheckbox, BFormRadioGroup } from 'bootstrap-vue';
+import { BBadge, BDropdown, BDropdownItem, BForm, BFormGroup, BFormInput, BFormRadioGroup, BButton } from 'bootstrap-vue';
 import Multiselect from 'vue-multiselect';
 import { mapGetters, mapState } from "vuex";
 import refParser from '@apidevtools/json-schema-ref-parser';
@@ -140,11 +188,13 @@ function getQueryDefaults() {
     q: [],
     datetime: null,
     bbox: null,
+    intersects: null,
     limit: null,
     ids: [],
     collections: [],
     sortby: null,
-    filters: null
+    filters: null,
+    naturalLanguageQuery: ''
   };
 }
 
@@ -152,11 +202,17 @@ function getDefaults() {
   return {
     sortOrder: 1,
     sortTerm: null,
-    provideBBox: false,
+    spatialExtentType: 'none',
     query: getQueryDefaults(),
     filtersAndOr: 'and',
     filters: [],
-    selectedCollections: []
+    selectedCollections: [],
+    naturalLanguageQuery: '',
+    naturalLanguageExplanation: '',
+    naturalLanguageLoading: false,
+    naturalLanguageError: null,
+    naturalLanguageAction: null,
+    naturalSearchArea: null
   };
 }
 
@@ -171,8 +227,8 @@ export default {
     BForm,
     BFormGroup,
     BFormInput,
-    BFormCheckbox,
     BFormRadioGroup,
+    BButton,
     QueryableInput: () => import('./QueryableInput.vue'),
     Loading,
     Map: () => import('./Map.vue'),
@@ -209,12 +265,16 @@ export default {
       hasAllCollections: false,
       collections: [],
       collectionsLoadingTimer: null,
-      additionalCollectionCount: 0
+      additionalCollectionCount: 0,
+      naturalLanguageLoading: false
     }, getDefaults());
   },
   computed: {
     ...mapState(['itemsPerPage', 'maxItemsPerPage', 'uiLanguage']),
     ...mapGetters(['canSearchCollections', 'supportsConformance']),
+    canSupportNaturalLanguage() {
+      return Boolean(this.$store.state.semanticSearchApiUrl);
+    },
     collectionSelectOptions() {
       let taggable = !this.hasAllCollections;
       let isResult = this.collections.length > 0 && !this.hasAllCollections;
@@ -245,7 +305,7 @@ export default {
     },
     ids() {
       let obj = {};
-      ['q', 'datetime', 'bbox', 'collections', 'ids', 'sort', 'limit']
+      ['q', 'datetime', 'bbox', 'collections', 'ids', 'sort', 'limit', 'naturalLanguage']
         .forEach(field => obj[field] = field + formId);
       return obj;
     },
@@ -289,6 +349,25 @@ export default {
       set(val) {
         this.query.datetime = Array.isArray(val) ? val.map(d => Utils.dateToUTC(d)) : null;
       }
+    },
+    naturalLanguageDescription() {
+      return this.naturalLanguageExplanation;
+    },
+    spatialExtentOptions() {
+      const options = [
+        { value: 'none', text: this.$t('search.spatialExtentOptions.none') },
+        { value: 'boundingBox', text: this.$t('search.spatialExtentOptions.boundingBox') },
+      ];
+      
+      // Add natural search area option if available
+      if (this.naturalSearchArea) {
+        options.push({ 
+          value: 'naturalSearchArea', 
+          text: this.$t('search.spatialExtentOptions.naturalSearchArea') 
+        });
+      }
+      
+      return options;
     }
   },
   watch: {
@@ -349,6 +428,199 @@ export default {
     Promise.all(promises).finally(() => this.loaded = true);
   },
   methods: {
+    async applyNaturalLanguageQuery(event) {
+      // Prevent form submission
+      if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+      
+      if (this.naturalLanguageQuery) {
+        this.naturalLanguageLoading = true;
+        this.naturalLanguageAction = 'populate';
+        try {
+          const SEMANTIC_SEARCH_API_URL = this.$store.state.semanticSearchApiUrl;
+          const response = await fetch(`${SEMANTIC_SEARCH_API_URL}/items/search`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              return_search_params_only: true,
+              query: this.naturalLanguageQuery,
+              limit: 10
+            })
+          });
+
+          if (!response.ok) {
+            throw new Error(`API request failed with status ${response.status}`);
+          }
+
+          const responseData = await response.json();
+          
+          // Store the explanation if available in the response
+          if (responseData.explanation) {
+            this.naturalLanguageExplanation = responseData.explanation;
+          } else if (responseData.results && responseData.results.explanation) {
+            this.naturalLanguageExplanation = responseData.results.explanation;
+          }
+          
+          // Extract datetime from search_params if available
+          if (responseData.results && responseData.results.search_params && responseData.results.search_params.datetime) {
+            const datetimeString = responseData.results.search_params.datetime;
+            // Parse datetime string in format '2021-01-01/2022-12-31'
+            const dates = datetimeString.split('/');
+            if (dates.length === 2) {
+              const startDate = dates[0] === '..' ? null : new Date(dates[0]);
+              const endDate = dates[1] === '..' ? null : new Date(dates[1]);
+              
+              // Set the datetime in the query
+              this.query.datetime = [startDate, endDate];
+            }
+          }
+          
+          // Extract collections from search_params if available
+          if (responseData.results && responseData.results.search_params && responseData.results.search_params.collections) {
+            const collectionIds = responseData.results.search_params.collections;
+            if (Array.isArray(collectionIds) && collectionIds.length > 0) {
+              // Remove duplicates and set collections in the query
+              const uniqueCollectionIds = [...new Set(collectionIds)];
+              this.$set(this.query, 'collections', uniqueCollectionIds);
+              
+              // Update selectedCollections to match the query collections
+              this.selectedCollections = uniqueCollectionIds.map(id => {
+                // Try to find existing collection in the collections array
+                let existingCollection = this.collections.find(c => c.value === id);
+                if (existingCollection) {
+                  return existingCollection;
+                }
+                // If not found, create a new collection option
+                return this.collectionToMultiSelect({id});
+              });
+            }
+          }
+          
+          // Extract max_items from search_params if available
+          if (responseData.results && responseData.results.search_params && responseData.results.search_params.max_items) {
+            const maxItems = parseInt(responseData.results.search_params.max_items, 10);
+            if (!isNaN(maxItems) && maxItems > 0) {
+              // Ensure the value doesn't exceed the maximum allowed
+              const limitedMaxItems = Math.min(maxItems, this.maxItems);
+              this.$set(this.query, 'limit', limitedMaxItems);
+            }
+          }
+          
+          // Extract natural search area from search_params if available
+          if (responseData.results && responseData.results.search_params && responseData.results.search_params.intersects) {
+            const intersects = responseData.results.search_params.intersects;
+            if (intersects) {
+              this.naturalSearchArea = intersects;
+              // Set spatial extent type to natural search area if available
+              this.spatialExtentType = 'naturalSearchArea';
+            }
+          }
+                    
+          this.naturalLanguageError = null;
+          
+        } catch (error) {
+          console.error('Error in semantic search:', error);
+          this.naturalLanguageError = error.message;
+        } finally {
+          this.naturalLanguageLoading = false;
+          this.naturalLanguageAction = null;
+        }
+      }
+    },
+    async directNaturalLanguageSearch(event) {
+      // Prevent form submission
+      if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+
+      if (this.naturalLanguageQuery) {
+        this.naturalLanguageLoading = true;
+        this.naturalLanguageAction = 'search';
+        try {
+          const SEMANTIC_SEARCH_API_URL = this.$store.state.semanticSearchApiUrl;
+          const response = await fetch(`${SEMANTIC_SEARCH_API_URL}/items/search`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              return_search_params_only: true,
+              query: this.naturalLanguageQuery,
+              limit: this.query.limit || this.itemsPerPage
+            })
+          });
+
+          if (!response.ok) {
+            throw new Error(`API request failed with status ${response.status}`);
+          }
+
+          const responseData = await response.json();
+
+          // Create a search query from the response and emit it directly
+          const searchQuery = {};
+
+          if (responseData.results && responseData.results.search_params) {
+            const params = responseData.results.search_params;
+            
+            // Extract datetime
+            if (params.datetime) {
+              const datetimeString = params.datetime;
+              const dates = datetimeString.split('/');
+              if (dates.length === 2) {
+                const startDate = dates[0] === '..' ? null : new Date(dates[0]);
+                const endDate = dates[1] === '..' ? null : new Date(dates[1]);
+                searchQuery.datetime = [startDate, endDate];
+              }
+            }
+            
+            // Extract collections
+            if (params.collections && Array.isArray(params.collections)) {
+              searchQuery.collections = [...new Set(params.collections)];
+            }
+            
+            // Extract limit
+            if (params.max_items) {
+              const maxItems = parseInt(params.max_items, 10);
+              if (!isNaN(maxItems) && maxItems > 0) {
+                searchQuery.limit = Math.min(maxItems, this.maxItems);
+              }
+            }
+            
+            // Extract spatial parameters
+            if (params.intersects) {
+              searchQuery.intersects = params.intersects;
+              // Also store the natural search area locally for UI display
+              this.naturalSearchArea = params.intersects;
+              this.spatialExtentType = 'naturalSearchArea';
+            }
+          }
+
+          // Store explanation for display
+          if (responseData.explanation) {
+            this.naturalLanguageExplanation = responseData.explanation;
+          } else if (responseData.results && responseData.results.explanation) {
+            this.naturalLanguageExplanation = responseData.results.explanation;
+          }
+
+          // Emit the search query directly to trigger immediate search
+          this.$emit('input', searchQuery, false);
+
+          this.naturalLanguageError = null;
+          
+        } catch (error) {
+          console.error('Error in direct semantic search:', error);
+          this.naturalLanguageError = error.message;
+        } finally {
+          this.naturalLanguageLoading = false;
+          this.naturalLanguageAction = null;
+        }
+      }
+    },
     resetSearchCollection() {
       clearTimeout(this.collectionsLoadingTimer);
       this.collectionsLoadingTimer = null;
@@ -502,10 +774,40 @@ export default {
       }
       let filters = this.buildFilter();
       this.$set(this.query, 'filters', filters);
-      this.$emit('input', this.query, false);
+      
+      // Set spatial parameters based on current selection
+      if (this.spatialExtentType === 'naturalSearchArea' && this.naturalSearchArea) {
+        this.$set(this.query, 'intersects', this.naturalSearchArea);
+        this.$set(this.query, 'bbox', null);
+      } else if (this.spatialExtentType === 'boundingBox') {
+        this.$set(this.query, 'bbox', this.query.bbox);
+        this.$set(this.query, 'intersects', null);
+      } else {
+        // None selected
+        this.$set(this.query, 'bbox', null);
+        this.$set(this.query, 'intersects', null);
+      }
+      
+      // Remove naturalLanguageQuery from the submitted query
+      const submitQuery = { ...this.query };
+      delete submitQuery.naturalLanguageQuery;
+      
+      // Only include intersects if it's not empty
+      if (!submitQuery.intersects) {
+        delete submitQuery.intersects;
+      }
+      
+      this.$emit('input', submitQuery, false);
     },
     async onReset() {
       Object.assign(this, getDefaults());
+      this.naturalLanguageQuery = '';
+      this.naturalLanguageExplanation = '';
+      this.naturalLanguageLoading = false;
+      this.naturalLanguageError = null;
+      this.naturalLanguageAction = null;
+      this.naturalSearchArea = null;
+      this.query.intersects = null;
       this.$emit('input', {}, true);
     },
     setLimit(limit) {
@@ -529,7 +831,9 @@ export default {
     },
     setBBox(bounds) {
       let bbox = null;
-      if (this.provideBBox) {
+      let intersects = null;
+      
+      if (this.spatialExtentType === 'boundingBox') {
         if (Utils.isObject(bounds) && typeof bounds.toBBoxString === 'function') {
           // This is a Leaflet LatLngBounds Object
           const Y = 85.06;
@@ -545,7 +849,13 @@ export default {
           bbox = bounds;
         }
       }
+      else if (this.spatialExtentType === 'naturalSearchArea' && this.naturalSearchArea) {
+        // Use the natural search area as intersects parameter
+        intersects = this.naturalSearchArea;
+      }
+      
       this.$set(this.query, 'bbox', bbox);
+      this.$set(this.query, 'intersects', intersects);
     },
     addCollection(collection) {
       if (!this.collectionSelectOptions.taggable) {
@@ -608,6 +918,11 @@ $primary-color: map-get($theme-colors, "primary");
     }
 
     > label {
+      font-weight: 600;
+    }
+    
+    // Add styling for fieldset > legend
+    legend {
       font-weight: 600;
     }
   }

@@ -11,6 +11,7 @@
       <l-tile-layer v-for="xyz of xyzLinks" ref="xyzOverlays" :key="xyz.url" layerType="overlay" v-bind="xyz" />
       <LWMSTileLayer v-for="wms of wmsLinks" ref="wmsOverlays" :key="wms.url" layerType="overlay" v-bind="wms" />
       <l-geo-json v-if="geojson" ref="geojson" :geojson="geojson" :options="{onEachFeature: showPopup}" :optionsStyle="{color: secondaryColor, weight: secondaryWeight}" />
+      <l-geo-json v-if="intersectsPolygon" ref="intersectsLayer" :geojson="intersectsPolygon" :options="{onEachFeature: showIntersectsPopup}" :optionsStyle="{color: '#3B82F6', weight: 2, fillColor: '#3B82F6', fillOpacity: 0.15, opacity: 0.8, dashArray: '5, 5'}" @ready="onIntersectsLayerReady" />
     </l-map>
     <b-popover
       v-if="popover && selectedItem" placement="left" triggers="manual" :show="selectedItem !== null"
@@ -180,6 +181,15 @@ export default {
         }
       }
       return wmsLinks;
+    },
+    naturalLanguageDescription() {
+      return this.naturalLanguageExplanation;
+    },
+    intersectsPolygon() {
+      if (this.stacLayerData && this.stacLayerData.intersects) {
+        return this.stacLayerData.intersects;
+      }
+      return null;
     }
   },
   watch: {
@@ -428,6 +438,12 @@ export default {
         this.$refs.geojson.mapObject.bringToFront();
       }
     },
+    onIntersectsLayerReady() {
+      const layer = this.$refs.intersectsLayer && this.$refs.intersectsLayer.mapObject;
+      if (layer && this.map) {
+        this.fitBounds(layer);
+      }
+    },
     fitBounds(layer, noPadding = false) {
       let fitOptions = {
         padding: noPadding ? [0,0] : [90,90],
@@ -450,6 +466,10 @@ export default {
       if (html.length === 0) {
         html += `<p>${this.$t('leaflet.noFeatureProperties')}</p>`;
       }
+      layer.bindPopup(html);
+    },
+    showIntersectsPopup(feature, layer) {
+      const html = `<h3>${this.$t('search.naturalLanguageSearchArea')}</h3><p>${this.$t('search.naturalLanguageSearchAreaDescription')}</p>`;
       layer.bindPopup(html);
     },
     addBoundsSelector() {

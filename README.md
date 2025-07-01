@@ -16,7 +16,7 @@ It's not officially supported, but you may also be able to use it for
 certain _OGC API - Records_ and _OGC API - Features_ compliant servers.
 
 **Please note that STAC Browser is currently with limited funding for both maintenance, bug fixes and improvements. This means issues and PRs may be addressed very slowly.
-If you care about STAC Browser and have some funds to support the future of STAC Browser, please contact matthias@mohr.ws**
+If you care about STAC Browser and have some funds to support the future of STAC Browser, please contact <matthias@mohr.ws>**
 
 **Table of Contents:**
 
@@ -37,6 +37,7 @@ If you care about STAC Browser and have some funds to support the future of STAC
       - [Translation](#translation)
     - [Customize through root catalog](#customize-through-root-catalog)
     - [Custom extensions](#custom-extensions)
+    - [Natural Language Search](#natural-language-search)
   - [Docker](#docker)
   - [Contributing](#contributing)
     - [Adding a new language](#adding-a-new-language)
@@ -268,6 +269,48 @@ STAC Browser supports some non-standardized extensions to the STAC specification
 2. [Alternative Assets Object](https://github.com/stac-extensions/alternate-assets?tab=readme-ov-file#alternate-asset-object):
    Add a `name` field and it will be used as title in the tab header, the same applies for the core Asset Object.
 3. A link with relation type `icon` and a Browser-supported media type in any STAC entity will show an icon in the header and the lists of Catalogs, Collections and Items.
+
+### Natural Language Search
+
+STAC Browser supports natural language search functionality that allows users to search for STAC items using descriptive queries in natural language (e.g., "satellite images of forests in California from 2023").
+
+To enable natural language search:
+
+1. **Configure the API URL**: Set the `semanticSearchApiUrl` option in your configuration file:
+
+```javascript
+// config.js
+module.exports = {
+  // ... other config options
+  semanticSearchApiUrl: "https://your-semantic-search-api.com",
+  // ... other config options
+};
+```
+
+2. **API Requirements**: Your semantic search API should accept POST requests to `/items/search` with the following format:
+
+```json
+{
+  "query": "your natural language query",
+  "limit": 10
+}
+```
+
+And return results in this format:
+
+```json
+{
+  "results": {
+    "items": [
+      // Array of STAC items
+    ]
+  }
+}
+```
+
+3. **User Interface**: Once configured, users will see the "Natural Language Query" search interface where they can enter descriptive queries.
+
+**Note**: Natural language search is disabled by default. The feature will only appear in the interface when `semanticSearchApiUrl` is configured with a valid API URL.
 
 ## Docker
 

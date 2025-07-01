@@ -25,7 +25,7 @@
         <b-alert v-else-if="data === null" variant="info" show>{{ $t('search.modifyCriteria') }}</b-alert>
         <b-alert v-else-if="results.length === 0 && noFurtherItems" variant="info" show>{{ $t('search.noFurtherItemsFound') }}</b-alert>
         <b-alert v-else-if="results.length === 0" variant="warning" show>{{ $t('search.noItemsFound') }}</b-alert>
-        <template v-else>
+        <template v-if="data && results.length > 0">
           <div id="search-map" v-if="itemCollection">
             <Map :stac="stac" :stacLayerData="itemCollection" scrollWheelZoom popover />
           </div>
@@ -70,6 +70,7 @@ import Loading from '../components/Loading.vue';
 import STAC from '../models/stac';
 import { BIconCheckSquare, BIconSquare, BTabs, BTab } from 'bootstrap-vue';
 import { processSTAC, stacRequest } from '../store/utils';
+import ApiCapabilitiesMixin from '../components/ApiCapabilitiesMixin';
 
 export default {
   name: "Search",
@@ -85,6 +86,9 @@ export default {
     SearchFilter,
     StacLink: () => import('../components/StacLink.vue')
   },
+  mixins: [
+    ApiCapabilitiesMixin
+  ],
   props: {
     loadParent: {
       type: String,
@@ -103,7 +107,7 @@ export default {
       itemFilters: {},
       collectionFilters: {},
       activeSearch: 0,
-      selectedCollections: {}
+      selectedCollections: {},
     };
   },
   computed: {
@@ -159,6 +163,7 @@ export default {
               return null;
             }
             let selfLink = Utils.getLinkWithRel(obj.links, 'self');
+
             let url;
             if (selfLink?.href) {
               url = Utils.toAbsolute(selfLink.href, this.link.href);
@@ -187,7 +192,7 @@ export default {
       return this.$t('search.metaDescription', {title});
     },
     noFurtherItems() {
-      // Ideally this would be dertmined by the prev link, but it's not required
+      // Ideally this would be determined by the prev link, but it's not required
       // so we check whether our current link has a next rel type which indicates
       // that it's a subsequent page. On the first pages the link rel type would be
       // "search" (or "prev" or "first"). This only works for forward navigation.

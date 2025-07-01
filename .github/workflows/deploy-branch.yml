@@ -1,0 +1,60 @@
+name: Deploy Branch Preview
+on:
+  push:
+    branches-ignore:
+      - main
+      - develop
+  pull_request:
+    branches:
+      - main
+      - develop
+
+jobs:
+  deploy-preview:
+    runs-on: ubuntu-latest
+    env:
+      SEMANTIC_SEARCH_API_URL: ${{ secrets.SEMANTIC_SEARCH_API_URL }}
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "lts/*"
+
+      - uses: actions/checkout@v4
+
+      - name: Get branch name
+        id: branch-name
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            echo "branch_name=${{ github.head_ref }}" >> $GITHUB_OUTPUT
+          else
+            echo "branch_name=${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          fi
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build for preview
+        run: npm run build -- --pathPrefix="/stac-browser/preview/${{ steps.branch-name.outputs.branch_name }}" --historyMode=hash --semanticSearchApiUrl="${{ env.SEMANTIC_SEARCH_API_URL }}"
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: dist
+          exclude_assets: "report.html"
+          user_name: "STAC Browser CI"
+          user_email: github@developmentseed.org
+          destination_dir: preview/${{ steps.branch-name.outputs.branch_name }}
+          publish_branch: gh-pages-preview
+
+      - name: Comment PR
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const url = `https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/preview/${{ steps.branch-name.outputs.branch_name }}/`;
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `🚀 **Preview deployed!**\n\nYour changes are now available at: ${url}\n\nThis preview will be automatically updated on each push to this branch.`
+            });

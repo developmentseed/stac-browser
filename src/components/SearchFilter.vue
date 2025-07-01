@@ -14,26 +14,38 @@
           <b-alert v-if="naturalLanguageError" variant="danger" show dismissible @dismissed="naturalLanguageError = null">
             {{ naturalLanguageError }}
           </b-alert>
-          <div class="d-flex">
+          <div>
             <b-form-input
               :id="ids.naturalLanguage"
               v-model="naturalLanguageQuery"
               type="text"
               :placeholder="$t('search.enterNaturalLanguageQuery')"
-              @keyup.enter="applyNaturalLanguageQuery"
+              @keyup.enter="directNaturalLanguageSearch"
               @keydown.enter.prevent
-              class="flex-grow-1 mr-2"
+              class="mb-3"
             />
-            <b-button variant="primary" @click="applyNaturalLanguageQuery" :disabled="naturalLanguageLoading">
-              <span v-if="naturalLanguageLoading">
-                {{ $t('search.processing') }}
-              </span>
-              <span v-else>
-                {{ $t('search.applyNaturalLanguageQuery') }}
-              </span>
-            </b-button>
+            <div class="d-flex justify-content-end">
+              <b-button variant="outline-secondary" @click="applyNaturalLanguageQuery" :disabled="naturalLanguageLoading && naturalLanguageAction !== 'populate'" class="mr-2">
+                <span v-if="naturalLanguageLoading && naturalLanguageAction === 'populate'">
+                  {{ $t('search.processing') }}
+                </span>
+                <span v-else>
+                  {{ $t('search.populateForm') }}
+                </span>
+              </b-button>
+              <b-button variant="primary" @click="directNaturalLanguageSearch" :disabled="naturalLanguageLoading && naturalLanguageAction !== 'search'">
+                <span v-if="naturalLanguageLoading && naturalLanguageAction === 'search'">
+                  {{ $t('search.processing') }}
+                </span>
+                <span v-else>
+                  {{ $t('search.searchDirectly') }}
+                </span>
+              </b-button>
+            </div>
           </div>
         </b-form-group>
+
+        <hr v-if="canSupportNaturalLanguage">
 
         <b-form-group v-if="canFilterFreeText" class="filter-freetext" :label="$t('search.freeText')" :label-for="ids.q" :description="$t('search.freeTextDescription')">
           <multiselect
@@ -58,6 +70,13 @@
         <b-form-group v-if="canFilterExtents" class="filter-bbox" :label="$t('search.spatialExtent')" :label-for="ids.bbox">
           <b-form-radio-group :id="ids.bbox" v-model="spatialExtentType" :options="spatialExtentOptions" name="spatialExtent" @change="setBBox()" />
           <Map class="mb-4" v-if="spatialExtentType === 'boundingBox'" :stac="stac" selectBounds @bounds="setBBox" scrollWheelZoom />
+          <div v-if="spatialExtentType === 'naturalSearchArea' && naturalSearchArea">
+            <div class="alert alert-info mb-3">
+              <strong>{{ $t('search.spatialExtentOptions.naturalSearchArea') }}:</strong>
+              {{ $t('search.naturalSearchAreaDescription') }}
+            </div>
+            <Map class="mb-4" :key="'naturalSearchArea-' + JSON.stringify(naturalSearchArea)" :stac="stac" :stacLayerData="{intersects: naturalSearchArea}" scrollWheelZoom />
+          </div>
         </b-form-group>
 
         <b-form-group v-if="conformances.CollectionIdFilter" class="filter-collection" :label="$tc('stacCollection', collections.length)" :label-for="ids.collections">
@@ -192,6 +211,7 @@ function getDefaults() {
     naturalLanguageExplanation: '',
     naturalLanguageLoading: false,
     naturalLanguageError: null,
+    naturalLanguageAction: null,
     naturalSearchArea: null
   };
 }
@@ -417,6 +437,7 @@ export default {
       
       if (this.naturalLanguageQuery) {
         this.naturalLanguageLoading = true;
+        this.naturalLanguageAction = 'populate';
         try {
           const SEMANTIC_SEARCH_API_URL = this.$store.state.semanticSearchApiUrl;
           const response = await fetch(`${SEMANTIC_SEARCH_API_URL}/items/search`, {
@@ -506,6 +527,97 @@ export default {
           this.naturalLanguageError = error.message;
         } finally {
           this.naturalLanguageLoading = false;
+          this.naturalLanguageAction = null;
+        }
+      }
+    },
+    async directNaturalLanguageSearch(event) {
+      // Prevent form submission
+      if (event) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+
+      if (this.naturalLanguageQuery) {
+        this.naturalLanguageLoading = true;
+        this.naturalLanguageAction = 'search';
+        try {
+          const SEMANTIC_SEARCH_API_URL = this.$store.state.semanticSearchApiUrl;
+          const response = await fetch(`${SEMANTIC_SEARCH_API_URL}/items/search`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              return_search_params_only: true,
+              query: this.naturalLanguageQuery,
+              limit: this.query.limit || this.itemsPerPage
+            })
+          });
+
+          if (!response.ok) {
+            throw new Error(`API request failed with status ${response.status}`);
+          }
+
+          const responseData = await response.json();
+
+          // Create a search query from the response and emit it directly
+          const searchQuery = {};
+
+          if (responseData.results && responseData.results.search_params) {
+            const params = responseData.results.search_params;
+            
+            // Extract datetime
+            if (params.datetime) {
+              const datetimeString = params.datetime;
+              const dates = datetimeString.split('/');
+              if (dates.length === 2) {
+                const startDate = dates[0] === '..' ? null : new Date(dates[0]);
+                const endDate = dates[1] === '..' ? null : new Date(dates[1]);
+                searchQuery.datetime = [startDate, endDate];
+              }
+            }
+            
+            // Extract collections
+            if (params.collections && Array.isArray(params.collections)) {
+              searchQuery.collections = [...new Set(params.collections)];
+            }
+            
+            // Extract limit
+            if (params.max_items) {
+              const maxItems = parseInt(params.max_items, 10);
+              if (!isNaN(maxItems) && maxItems > 0) {
+                searchQuery.limit = Math.min(maxItems, this.maxItems);
+              }
+            }
+            
+            // Extract spatial parameters
+            if (params.intersects) {
+              searchQuery.intersects = params.intersects;
+              // Also store the natural search area locally for UI display
+              this.naturalSearchArea = params.intersects;
+              this.spatialExtentType = 'naturalSearchArea';
+            }
+          }
+
+          // Store explanation for display
+          if (responseData.explanation) {
+            this.naturalLanguageExplanation = responseData.explanation;
+          } else if (responseData.results && responseData.results.explanation) {
+            this.naturalLanguageExplanation = responseData.results.explanation;
+          }
+
+          // Emit the search query directly to trigger immediate search
+          this.$emit('input', searchQuery, false);
+
+          this.naturalLanguageError = null;
+          
+        } catch (error) {
+          console.error('Error in direct semantic search:', error);
+          this.naturalLanguageError = error.message;
+        } finally {
+          this.naturalLanguageLoading = false;
+          this.naturalLanguageAction = null;
         }
       }
     },
@@ -693,6 +805,7 @@ export default {
       this.naturalLanguageExplanation = '';
       this.naturalLanguageLoading = false;
       this.naturalLanguageError = null;
+      this.naturalLanguageAction = null;
       this.naturalSearchArea = null;
       this.query.intersects = null;
       this.$emit('input', {}, true);

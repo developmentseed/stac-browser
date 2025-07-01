@@ -226,8 +226,10 @@
     "enterSearchTerms": "Enter one or more search terms...",
     "enterNaturalLanguageQuery": "e.g., 'satellite images of California from 2023'",
     "naturalLanguageQuery": "Natural Language Search",
-    "naturalLanguageInfo": "Enter a natural language query to automatically populate the search form fields. Then click 'Submit' to execute the search with the populated criteria.",
+    "naturalLanguageInfo": "Enter a description of what you are searching for using natural language, such as 'satellite images of California from 2023'.",
     "applyNaturalLanguageQuery": "Populate",
+    "searchDirectly": "Search",
+    "populateForm": "Populate Form",
     "naturalLanguageSearchArea": "Natural Language Search Area",
     "naturalLanguageSearchAreaDescription": "This area represents the spatial extent used in your natural language search query.",
     "processing": "Processing...",
@@ -271,6 +273,7 @@
       "boundingBox": "Bounding Box",
       "naturalSearchArea": "Natural Search Area"
     },
+    "naturalSearchAreaDescription": "This spatial area was automatically derived from your natural language query and will be used to filter search results.",
     "tabs": {
       "collections": "Search for Collections",
       "items": "Search for Items"
